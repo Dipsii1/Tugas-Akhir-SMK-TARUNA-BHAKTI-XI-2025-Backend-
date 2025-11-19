@@ -4,12 +4,25 @@ require('dotenv').config();
 const createError = require('http-errors');
 const express = require('express');
 const path = require('path');
+var cors = require('cors');
 
 // Import Router
 const indexRouter = require('./routes/index');
 const booksRouter = require('./routes/books');
+const categoriesRouter = require('./routes/categories');
 
 const app = express();
+app.use(
+  cors({
+    origin: 'http://localhost:8080',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+
+// cors 
+app.use(cors())
 
 // Middleware
 app.use(express.json());
@@ -18,6 +31,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/', indexRouter);
 app.use('/books', booksRouter);
+app.use('/categories', categoriesRouter);
 
 // 404 handler
 app.use((req, res, next) => {

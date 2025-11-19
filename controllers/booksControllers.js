@@ -1,14 +1,15 @@
 const db = require("../config/db");
 
 // Get all books
-const getAllBuku = async (req, res) => {
+const getAllBook = async (req, res) => {
   try {
     const [rows] = await db.query(`
       SELECT 
         b.id,
         b.judul,
-        p.nama_penulis AS penulis,
-        pb.nama_penerbit AS penerbit,
+        penulis,
+        penerbit,
+        deskripsi,
         k.nama_kategori AS kategori,
         b.tahun_terbit,
         b.jumlah_total,
@@ -16,8 +17,6 @@ const getAllBuku = async (req, res) => {
         b.created_at,
         b.updated_at
       FROM buku b
-      LEFT JOIN penulis p ON b.id_penulis = p.id
-      LEFT JOIN penerbit pb ON b.id_penerbit = pb.id
       LEFT JOIN kategori_buku k ON b.id_kategori = k.id
     `);
 
@@ -38,7 +37,7 @@ const getAllBuku = async (req, res) => {
 };
 
 // Get book by ID
-const getBukuById = async (req, res) => {
+const getBookById = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -54,8 +53,9 @@ const getBukuById = async (req, res) => {
       `SELECT 
         b.id,
         b.judul,
-        p.nama_penulis AS penulis,
-        pb.nama_penerbit AS penerbit,
+        b.penulis,
+        b.penerbit,
+        b.deskripsi,
         k.nama_kategori AS kategori,
         b.tahun_terbit,
         b.jumlah_total,
@@ -63,8 +63,6 @@ const getBukuById = async (req, res) => {
         b.created_at,
         b.updated_at
       FROM buku b
-      LEFT JOIN penulis p ON b.id_penulis = p.id
-      LEFT JOIN penerbit pb ON b.id_penerbit = pb.id
       LEFT JOIN kategori_buku k ON b.id_kategori = k.id
       WHERE b.id = ?`,
       [id]
@@ -93,23 +91,23 @@ const getBukuById = async (req, res) => {
 };
 
 // Create book
-const tambahBuku = async (req, res) => {
+const createBook = async (req, res) => {
   try {
-    const { judul, id_penulis, id_penerbit, tahun_terbit, id_kategori, jumlah_total } = req.body;
+    const { judul, penulis, penerbit, deskripsi, tahun_terbit, id_kategori, jumlah_total } = req.body;
 
     // Validate required fields
-    if (!judul || !id_penulis || !id_penerbit || !tahun_terbit || !id_kategori || !jumlah_total) {
+    if (!judul || !penulis || !penerbit || !deskripsi || !tahun_terbit || !id_kategori || !jumlah_total || !jumlah_total) {
       return res.status(400).json({ 
         success: false,
-        message: "All fields are required (judul, id_penulis, id_penerbit, tahun_terbit, id_kategori, jumlah_total)" 
+        message: "All fields are required (judul, penulis, penerbit,deskripsi, tahun_terbit, id_kategori, jumlah_total)" 
       });
     }
 
     // Validate data types
-    if (isNaN(id_penulis) || isNaN(id_penerbit) || isNaN(id_kategori) || isNaN(jumlah_total)) {
+    if (isNaN(id_kategori) || isNaN(jumlah_total)) {
       return res.status(400).json({ 
         success: false,
-        message: "Author ID, publisher ID, category ID, and total quantity must be numbers" 
+        message: "category ID, and total quantity must be numbers" 
       });
     }
 
@@ -133,9 +131,9 @@ const tambahBuku = async (req, res) => {
 
     const [result] = await db.query(
       `INSERT INTO buku 
-      (judul, id_penulis, id_penerbit, tahun_terbit, id_kategori, jumlah_total, jumlah_tersedia)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [judul, id_penulis, id_penerbit, tahun_terbit, id_kategori, jumlah_total, jumlah_tersedia]
+      (judul, penulis, penerbit,deskripsi, tahun_terbit, id_kategori, jumlah_total, jumlah_tersedia)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [judul, penulis ,penerbit,deskripsi, tahun_terbit, id_kategori, jumlah_total, jumlah_tersedia]
     );
 
     res.status(201).json({
@@ -144,8 +142,9 @@ const tambahBuku = async (req, res) => {
       data: {
         id: result.insertId,
         judul,
-        id_penulis,
-        id_penerbit,
+        penulis,
+        penerbit,
+        deskripsi,
         tahun_terbit,
         id_kategori,
         jumlah_total,
@@ -155,15 +154,6 @@ const tambahBuku = async (req, res) => {
 
   } catch (error) {
     console.error("Error tambahBuku:", error);
-
-    // Handle foreign key constraint error
-    if (error.code === 'ER_NO_REFERENCED_ROW_2') {
-      return res.status(400).json({ 
-        success: false,
-        message: "Author ID, publisher ID, or category ID not found. Please ensure master data exists.",
-        error: error.sqlMessage 
-      });
-    }
 
     // Handle duplicate entry error
     if (error.code === 'ER_DUP_ENTRY') {
@@ -183,7 +173,7 @@ const tambahBuku = async (req, res) => {
 };
 
 // Update book
-const updateBuku = async (req, res) => {
+const updateBook = async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -307,7 +297,7 @@ const updateBuku = async (req, res) => {
 };
 
 // Delete book
-const deleteBuku = async (req, res) => {
+const deleteBook = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -364,9 +354,9 @@ const deleteBuku = async (req, res) => {
 };
 
 module.exports = {
-  getAllBuku,
-  getBukuById,
-  tambahBuku,
-  updateBuku,
-  deleteBuku
+  getAllBook,
+  getBookById,
+  createBook,
+  updateBook,
+  deleteBook
 };
