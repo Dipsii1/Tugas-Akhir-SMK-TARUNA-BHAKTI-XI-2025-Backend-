@@ -128,29 +128,58 @@ const createBook = async (req, res) => {
 const updateBook = async (req, res) => {
   try {
     const { id } = req.params;
-    const updatedFields = req.body;
+    const data = req.body;
 
-    const [exist] = await db.query(`SELECT * FROM buku WHERE id = ?`, [id]);
-    if (!exist.length) return res.status(404).json({ success: false, message: "Book not found" });
+    // cek buku ada atau tidak
+    const [[book]] = await db.query(
+      "SELECT id FROM buku WHERE id = ?",
+      [id]
+    );
 
-    // Prevent ISBN duplicate
-    if (updatedFields.ISBN) {
-      const [dup] = await db.query(`SELECT id FROM buku WHERE ISBN = ? AND id != ?`, [updatedFields.ISBN, id]);
-      if (dup.length) return res.status(409).json({ success: false, message: "ISBN already exists" });
+    if (!book) {
+      return res.status(404).json({
+        success: false,
+        message: "Buku tidak ditemukan"
+      });
     }
 
-    const [result] = await db.query(`UPDATE buku SET ? WHERE id = ?`, [updatedFields, id]);
+    // cek ISBN duplikat (jika diubah)
+    if (data.ISBN) {
+      const [[dup]] = await db.query(
+        "SELECT id FROM buku WHERE ISBN = ? AND id != ?",
+        [data.ISBN, id]
+      );
 
-    res.status(200).json({
+      if (dup) {
+        return res.status(409).json({
+          success: false,
+          message: "ISBN sudah digunakan"
+        });
+      }
+    }
+
+    // update langsung
+    await db.query(
+      "UPDATE buku SET ? WHERE id = ?",
+      [data, id]
+    );
+
+    res.json({
       success: true,
-      message: "Book updated successfully",
-      data: { id, ...updatedFields },
+      message: "Buku berhasil diupdate",
+      data
     });
+
   } catch (error) {
-    console.error("Error updateBook:", error);
-    res.status(500).json({ success: false, message: "Failed to update book" });
+    console.error("updateBook error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Gagal update buku"
+    });
   }
 };
+
+
 
 // Delete book
 const deleteBook = async (req, res) => {
