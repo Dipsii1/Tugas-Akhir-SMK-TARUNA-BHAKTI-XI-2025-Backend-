@@ -1,21 +1,17 @@
 const db = require("../config/db");
 
-// ==============================
 // AUTO UPDATE LATE
-// ==============================
 const autoLate = async () => {
   await db.query(`
     UPDATE peminjaman
     SET status = 'late'
-    WHERE status = 'accept'
+    WHERE status IN ('accept', 'taken')
       AND tgl_pengembalian IS NOT NULL
       AND tgl_pengembalian < CURDATE()
   `);
 };
 
-// ==============================
 // GET ALL BORROWED
-// ==============================
 const getAllBorrowed = async (req, res) => {
   try {
     await autoLate();
@@ -39,9 +35,7 @@ const getAllBorrowed = async (req, res) => {
   }
 };
 
-// ==============================
 // GET BORROWED BY ID
-// ==============================
 const getBorrowedById = async (req, res) => {
   try {
     await autoLate();
@@ -70,9 +64,7 @@ const getBorrowedById = async (req, res) => {
   }
 };
 
-// ==============================
 // GET BORROWED BY USER
-// ==============================
 const getBorrowedByUserId = async (req, res) => {
   try {
     await autoLate();
@@ -98,9 +90,7 @@ const getBorrowedByUserId = async (req, res) => {
   }
 };
 
-// ==============================
 // CREATE BORROW
-// ==============================
 const createBorrow = async (req, res) => {
   try {
     const { id_buku, id_user, catatan } = req.body;
@@ -108,7 +98,7 @@ const createBorrow = async (req, res) => {
     if (!id_buku || !id_user)
       return res.status(400).json({ success: false, message: "Data wajib diisi" });
 
-    // === CEK BUKU ===
+    // CEK BUKU
     const [[book]] = await db.query(
       `SELECT jumlah_tersedia FROM buku WHERE id = ?`,
       [id_buku]
@@ -120,23 +110,23 @@ const createBorrow = async (req, res) => {
     if (book.jumlah_tersedia <= 0)
       return res.status(400).json({ success: false, message: "Stok buku habis" });
 
-    // === CEK USER ===
+    // CEK USER
     const [[user]] = await db.query(`SELECT id FROM users WHERE id = ?`, [id_user]);
     if (!user)
       return res.status(404).json({ success: false, message: "User tidak ditemukan" });
 
-    // === CEK BUKU YANG SAMA ===
+    // CEK BUKU YANG SAMA
     const [sameBook] = await db.query(`
       SELECT id FROM peminjaman 
       WHERE id_user = ?
         AND id_buku = ?
-        AND status IN ('pending', 'accept', 'late')
+        AND status IN ('pending', 'accept', 'taken', 'late')
     `, [id_user, id_buku]);
 
     if (sameBook.length)
       return res.status(400).json({ success: false, message: "Buku sudah dipinjam" });
 
-    // === SIMPAN ===
+    // SIMPAN
     const [result] = await db.query(`
       INSERT INTO peminjaman (id_user, id_buku, tgl_peminjaman, status, catatan)
       VALUES (?, ?, CURDATE(), 'pending', ?)
@@ -153,9 +143,7 @@ const createBorrow = async (req, res) => {
   }
 };
 
-// ==============================
 // UPDATE BORROW
-// ==============================
 const updateBorrow = async (req, res) => {
   const conn = await db.getConnection();
   try {
@@ -170,17 +158,17 @@ const updateBorrow = async (req, res) => {
     if (!current)
       return res.status(404).json({ success: false, message: "Data tidak ditemukan" });
 
-    const allowed = ["pending", "accept", "late", "returned", "rejected"];
+    const allowed = ["pending", "accept", "taken", "late", "returned", "rejected"];
     if (status && !allowed.includes(status))
       return res.status(400).json({ success: false, message: "Status tidak valid" });
 
     await conn.beginTransaction();
 
-    const consumes = (s) => ["accept", "late"].includes(s);
+    const consumes = (s) => ["accept", "taken", "late"].includes(s);
     const oldConsume = consumes(current.status);
     const newConsume = consumes(status);
 
-    // === STOK ===
+    // STOK
     if (!oldConsume && newConsume) {
       const [[book]] = await conn.query(
         `SELECT jumlah_tersedia FROM buku WHERE id = ? FOR UPDATE`,
@@ -207,7 +195,7 @@ const updateBorrow = async (req, res) => {
       `, [current.id_buku]);
     }
 
-    // === UPDATE DATA ===
+    // UPDATE DATA
     const updates = [];
     const values = [];
 
@@ -215,7 +203,7 @@ const updateBorrow = async (req, res) => {
       let finalStatus = status;
       const today = new Date().toISOString().slice(0,10);
 
-      if (status === "accept" && tgl_pengembalian && tgl_pengembalian < today)
+      if (["accept", "taken"].includes(status) && tgl_pengembalian && tgl_pengembalian < today)
         finalStatus = "late";
 
       updates.push("status = ?");
@@ -255,9 +243,7 @@ const updateBorrow = async (req, res) => {
   }
 };
 
-// ==============================
 // DELETE BORROW
-// ==============================
 const deleteBorrow = async (req, res) => {
   const conn = await db.getConnection();
   try {
@@ -271,7 +257,7 @@ const deleteBorrow = async (req, res) => {
     if (!row)
       return res.status(404).json({ success: false, message: "Data tidak ditemukan" });
 
-    const consumes = ["accept", "late"].includes(row.status);
+    const consumes = ["accept", "taken", "late"].includes(row.status);
 
     await conn.beginTransaction();
 
